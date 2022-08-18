@@ -28,7 +28,7 @@ fn main() -> io::Result<()> {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Timestamp {
     seconds: i64,
     nanos: i64,
@@ -210,4 +210,31 @@ fn fetch_send_timestamp_help(socket: &std::net::UdpSocket) -> io::Result<Option<
     }
 
     Ok(send_ts)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn roundtrip() {
+        let socket1 = std::net::UdpSocket::bind("127.0.0.1:3400").unwrap();
+        let socket2 = std::net::UdpSocket::bind("127.0.0.1:3401").unwrap();
+
+        set_timestamping_options(&socket1).unwrap();
+        set_timestamping_options(&socket2).unwrap();
+
+        socket1.connect("127.0.0.1:3401").unwrap();
+
+        socket1.send(MESSAGE.as_bytes()).unwrap();
+
+        let send_timestamp = fetch_send_timestamp_help(&socket1).unwrap();
+
+        let mut buf = vec![0; MESSAGE.len()];
+        let (bytes_read, receive_timestamp) = recv(&socket2, &mut buf).unwrap();
+
+        assert_eq!(bytes_read, MESSAGE.len());
+
+        assert!(send_timestamp < receive_timestamp);
+    }
 }
